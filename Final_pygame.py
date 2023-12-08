@@ -2,6 +2,7 @@ import pygame
 import os
 import random
 from pygame.locals import *
+import shlex
  
 # Initialize Pygame
 pygame.init()
@@ -10,8 +11,33 @@ pygame.init()
 WIDTH, HEIGHT = 1000, 700
 FPS = 30
 WHITE = (255, 255, 255)
-TRANSPARENT = (0, 0, 0, 0)  # Transparent color
+TRANSPARENT = (0, 0, 0, 0)
 BROWN = (139, 69, 19)
+ 
+# Load the image for the top left corner
+top_left_image = pygame.image.load("/Users/rsood/Downloads/Rummikub-Project/logo.png")
+top_left_image = pygame.transform.scale(top_left_image, (150, 50))
+ 
+# Set up the timer
+total_time = 45  # in seconds
+current_time = total_time
+clock = pygame.time.Clock()
+timer_event = pygame.USEREVENT + 1
+pygame.time.set_timer(timer_event, 1000)  # 1000 milliseconds = 1 second
+current_player = "Player"
+ 
+# Flag to check if the player clicked the Play button
+play_button_clicked = False
+ 
+def freeze_panel():
+    pygame.mouse.set_visible(True)  # Hide the mouse cursor
+    pygame.event.set_blocked(pygame.MOUSEBUTTONDOWN)  # Block mouse button events
+    pygame.event.set_blocked(pygame.MOUSEMOTION)  # Block mouse motion events
+ 
+def unfreeze_panel():
+    pygame.mouse.set_visible(True)  # Show the mouse cursor
+    pygame.event.set_allowed(pygame.MOUSEBUTTONDOWN)  # Allow mouse button events
+    pygame.event.set_allowed(pygame.MOUSEMOTION)  # Allow mouse motion events
  
 # Initialize Pygame window
 screen = pygame.display.set_mode((WIDTH, HEIGHT))
@@ -23,7 +49,6 @@ background_image = pygame.transform.scale(background_image, (WIDTH, HEIGHT))
  
 # Define button dimensions
 BUTTON_WIDTH, BUTTON_HEIGHT = 100, 50
- 
 SAT_BUTTON_WIDTH, SAT_BUTTON_HEIGHT = 180, 50
  
 # Create Rect objects for buttons
@@ -32,7 +57,8 @@ group_button_rect = pygame.Rect(250, 575, BUTTON_WIDTH, BUTTON_HEIGHT)
 run_button_rect = pygame.Rect(400, 575, BUTTON_WIDTH, BUTTON_HEIGHT)
 pool_button_rect = pygame.Rect(550, 575, BUTTON_WIDTH, BUTTON_HEIGHT)
 show_all_tiles_rect = pygame.Rect(700, 575, SAT_BUTTON_WIDTH, SAT_BUTTON_HEIGHT)
- 
+ct_button_rect = pygame.Rect(250, 640, BUTTON_WIDTH, BUTTON_HEIGHT)
+play_for_me_button_rect = pygame.Rect(700, 640, 150, BUTTON_HEIGHT)
  
 global player_score
 player_score = 0
@@ -78,6 +104,7 @@ def select_valid_group_or_run(image_paths, num_tiles):
  
 # Select 15 random images for the player's rack with valid groups or runs
 player_rack_images = select_valid_group_or_run(image_paths_1, 8) + select_valid_group_or_run(image_paths_2, 7)
+
 # Select 15 random images for the computer's rack with valid groups or runs
 computer_rack_images = select_valid_group_or_run(image_paths_1, 8) + select_valid_group_or_run(image_paths_2, 7)
  
@@ -126,16 +153,12 @@ game_board_selected_index = None
 scroll_offset_player = 0
 scroll_offset_computer = 0
  
-spacing = 10
- 
+spacing = 10 
 game_board_tiles = []
  
- 
-# ---------------- GROUPS AND RUNS LIST ---------------------
 groups_and_runs_mini_list = []
 groups_and_runs_main_list = []
- 
-# Initialize a list to store mini lists
+
 mini_lists = []
 current_mini_list = []
 only_tile_name = []
@@ -175,20 +198,14 @@ def is_cell_empty(row, col):
     return (row, col) not in occupied_cells
  
 game_board_grid_tl = pygame.Rect(game_board_grid[0][0]['cell_rect']).topleft
- 
- 
- 
+
 # ----------------------- GRID LOGIC ENDS ------------------------
  
 def draw_cards_from_pool():
-    # Draw two random cards from the pool
     drawn_cards = random.sample(pool_images, 2)
-    # Display a prompt to select one card
     selected_card_index = None
     selected_image = None
     while selected_card_index not in [0, 1]:
-        # Render the prompt
-        # Render the prompt background
  
         prompt_text = font.render("Select a card:", True, (0, 0, 0))
         prompt_rect = prompt_text.get_rect(center=(WIDTH // 2, HEIGHT // 2 - 50))
@@ -198,7 +215,7 @@ def draw_cards_from_pool():
  
         screen.blit(prompt_background, prompt_rect.topleft)
         screen.blit(prompt_text, prompt_rect.topleft)
-        # Render the two drawn cards
+
         for i, card_path_or_surface in enumerate(drawn_cards):
             if isinstance(card_path_or_surface, pygame.Surface):
                 card_image = card_path_or_surface
@@ -207,7 +224,7 @@ def draw_cards_from_pool():
             card_rect = card_image.get_rect(center=(WIDTH // 2 + (i - 0.5) * 150, HEIGHT // 2 + 50))
             screen.blit(card_image, card_rect.topleft)
         pygame.display.flip()
-        # Wait for player input
+    
         for event in pygame.event.get():
             if event.type == pygame.MOUSEBUTTONDOWN and (event.button == 1 or event.button == 2 or event.button == 3):
                 x, y = event.pos
@@ -218,14 +235,7 @@ def draw_cards_from_pool():
     # Get the file path for the selected card
     selected_card_path = drawn_cards[selected_card_index]
  
-    print(f'Selected Card Index : {selected_card_index}')
-    print(f'Selected Card Path : {selected_card_path}')
-    print(f'Selected Card Path Type : {type(selected_card_path)}')
- 
     player_rack_images.append(selected_card_path)
- 
-    print(player_rack_images)
-    print(len(player_rack_images))
  
     # Remove the selected card from the pool
     pool_images.remove(selected_card_path)
@@ -247,8 +257,6 @@ def get_current_player_rack_images():
 def get_player_rack_images():
     return player_rack_images
  
- 
- 
 # Variables for player and computer scores
 player_score = 0
 computer_score = 0
@@ -257,29 +265,50 @@ computer_score = 0
 combined_score_box_rect = pygame.Rect(WIDTH - 150, 10, 120, 80)
 computer_score_box_rect = pygame.Rect(WIDTH - 160, 10, 120, 80)
  
- 
- 
 def is_valid_group_or_run_fin(tile_paths):
-    # Exclude lists of just one length
-    if len(tile_paths) <= 2:
-        return "Invalid"
     # Extract tile numbers and colors
     tile_info = [(int(tile.split('_')[1]), tile.split('_')[2]) for tile in tile_paths]
-    # Check if it's a run
+    
+    # Set to store unique combinations
+    unique_combinations = set()
+ 
+    # Flag to track if there is a duplicate
+    has_duplicate = False
+ 
+    for number, color in tile_info:
+    # Check if the combination is already in the set
+        if (number, color) in unique_combinations:
+            has_duplicate = True
+            break
+        # Add the combination to the set
+        unique_combinations.add((number, color))
+ 
+    if has_duplicate:
+        return "Invalid"
+ 
+    if len(tile_paths) <= 2:
+        return "Invalid"
+   
     if all(num % 2 == tile_info[0][0] % 2 and color == tile_info[0][1] for num, color in tile_info):
         return "Run"
-    # Check if it's a group
+   
     if all(num == tile_info[0][0] for num, color in tile_info) and len(set(color for num, color in tile_info)) == len(tile_info):
         return "Group"
+ 
+    # Check for invalid case with length 3
+    if len(tile_paths) >= 3 and (any(tile_info.count(tile) > 1 for tile in tile_info) or len(set(tile_info)) < len(tile_info)):
+        return "Invalid"
+ 
     return "Invalid"
  
- 
 score_list = []
- 
 scored_minilists = set()
  
 def calculate_score(minilists):
     total_score = 0
+    scored_minilists.clear()
+    score_list.clear()
+ 
     for minilist in minilists:
         # Convert the minilist to a tuple to make it hashable and check if it's scored before
         minilist_tuple = tuple(minilist)
@@ -291,17 +320,44 @@ def calculate_score(minilists):
            
             # Mark the minilist as scored
             scored_minilists.add(minilist_tuple)
+ 
     score_list.append(total_score)
-    print(score_list)
     return sum(score_list)
  
+def remove_card_from_grid(game_board_grid, selected_card_path):
+    filename = os.path.basename(selected_card_path)
+    desired_part = filename.split('.')[0]
  
+    # Remove from game_board_tiles
+    for index, tile_info in enumerate(game_board_tiles):
+        if desired_part in tile_info['selected image path']:
+            del game_board_tiles[index]
+ 
+    for row in game_board_grid:
+        for cell in row:
+            if cell['image_path'] is not None and desired_part in cell['image_path']:
+                cell['image_path'] = None
+               
+# Main
 while running:
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             running = False
+ 
+        if event.type == timer_event:
+            if not play_button_clicked:
+                current_time -= 1
+                if current_time <= 0:
+                    current_time = total_time
+                    if current_player == "Player":
+                        current_player = "Computer"
+                        freeze_panel()
+                    else:
+                        current_player = "Player"
+                        unfreeze_panel()
+ 
         elif event.type == pygame.MOUSEBUTTONDOWN:
-            if event.button == 1:  # Left mouse button
+            if event.button == 1:  
                 x, y = event.pos
  
                 # Check if the mouse click is on a player's image
@@ -314,7 +370,6 @@ while running:
                         selected_index = i
                         original_position = rect.topleft
  
-                # Check if the mouse click is on an image on the game board
                 for i, tile in enumerate(game_board_tiles):
                     if tile['rect'].collidepoint(x, y):
                         game_board_dragging = True
@@ -323,51 +378,175 @@ while running:
                         original_position = tile['rect'].topleft
  
                 if play_button_rect.collidepoint(x, y):
-                    # Handle play button click
-                    print("Play button clicked")
-                    # Iterate row by row
+                    groups_and_runs_main_list.clear()
                     for row in game_board_grid:
-                        # Iterate through each cell in the row
-                        for cell in row:
-                            image_path = cell['image_path']
-                            groups_and_runs_main_list.append(image_path)
- 
- 
+                         for cell in row:
+                             image_path = cell['image_path']
+                             groups_and_runs_main_list.append(image_path)
  
                     for item in groups_and_runs_main_list:
                         if item is not None:
                             current_mini_list.append(item)
-                        elif current_mini_list:  # Check if the current_mini_list is not empty
+                        elif current_mini_list:
                             mini_lists.append(current_mini_list)
                             current_mini_list = []
  
-                    # Add the last mini list if it's not empty
                     if current_mini_list:
                         mini_lists.append(current_mini_list)
  
-                    # Filter out lists with [None]
-                    filtered_fin_list = [mini_list for mini_list in mini_lists if mini_list != [None]]
+                    current_mini_list.clear()
  
-                    # Print the result
-                    print("Filtered List of all cards inside the grid board : ")
-                    print(filtered_fin_list)
+                    filtered_fin_list = [mini_list for mini_list in mini_lists if mini_list != [None]]
+                    removal_lists_set = {tuple(inner_list) for inner_list in filtered_fin_list}
+                    distinct_lists = [list(inner_tuple) for inner_tuple in removal_lists_set]
+                    final_removal_distinct_list = [i for i in distinct_lists if len(i) in range(1,5)]
+ 
+ 
+                    for i in final_removal_distinct_list:
+                        if is_valid_group_or_run_fin(i) == "Run" or is_valid_group_or_run_fin(i) == "Group":
+                            final_removal_distinct_list.remove(i)
+ 
+                    for image_paths_list in final_removal_distinct_list:
+                        for selected_image_removal in image_paths_list:
+                            if selected_image_removal not in player_rack_images:
+                                player_rack_images.append(selected_image_removal)
+                                selected_image_rem = pygame.image.load(selected_image_removal)
+                                player_images.append(selected_image_rem)
+                                filename = os.path.basename(selected_image_removal)
+                                desired_part = filename.split('.')[0]
+                                remove_card_from_grid(game_board_grid,desired_part)    
+ 
+                    groups_and_runs_main_list.clear()
  
                     result_list = [
                         [os.path.splitext(os.path.basename(path))[0] for path in card_list]
                         for card_list in filtered_fin_list
                     ]
  
-                    print("Filtered list of all cards inside the grid board:")
-                    print(result_list)
+                    filtered_fin_list.clear()
+                   
                     player_score = calculate_score(result_list)
                     result_list.clear()
-                    print("Player's Score:", player_score)
  
+                    current_time = total_time
+                    current_player = "Computer"
+                    play_button_clicked = True
+                    freeze_panel()
  
+                elif ct_button_rect.collidepoint(x, y):
+                    # Check if it's the computer's turn
+                    if not dragging and not game_board_dragging:
+                        combination_found = False
+                        # Check for a sequence of the same number with different colors in the computer's rack
+                        for number in range(1, 16):  # Check for numbers 1 to 13
+                            same_number_images = [image for image in computer_rack_images if int(image.split('_')[1]) == number]
  
+                            if len(same_number_images) >= 3:
+                                # Sort images by color to form a sequence
+                                same_number_images.sort(key=lambda x: x.split('_')[2])
+ 
+                                # Choose a random subset of the sequence (minimum 3, maximum 5 cards)
+                                subset_size = random.randint(3, min(len(same_number_images), 5))
+                                selected_images = random.sample(same_number_images, subset_size)
+ 
+                                # Simulate placing the selected cards on the game board
+                                col = random.randint(0, num_columns - subset_size)
+                                row = random.randint(0, num_rows - 1)
+ 
+                                if is_valid_group_or_run_fin(same_number_images) == "Invalid":
+                                    combination_found = False
+                                    break
+ 
+                                # Check if the selected cells on the game board are empty
+                                if all(game_board_grid[row][col + i]['image_path'] is None for i in range(subset_size)):
+                                    for i, image_path in enumerate(selected_images):
+                                        game_board_grid[row][col + i]['image_path'] = image_path
+                                        game_board_tiles.append({
+                                            'image': pygame.image.load(os.path.join("C:\\path_to_images", image_path)),
+                                            'rect': pygame.Rect(game_board_grid[row][col + i]['cell_rect']),
+                                            'selected image path': image_path
+                                        })
+ 
+                                        # Remove the selected card from the computer's rack
+                                        computer_rack_images.remove(image_path)
+                                   
+                                    if is_valid_group_or_run_fin(same_number_images) in ("Run","Group"):
+                                        combination_found = True
+ 
+                                    break
+ 
+                        #If no sequence is found, draw a card from the pool
+                        if not combination_found:
+                            if len(pool_images) > 0:
+                                drawn_card = random.choice(pool_images)
+                                computer_rack_images.append(drawn_card)
+ 
+                                # Remove the drawn card from the pool
+                                pool_images.remove(drawn_card)
+ 
+                        # Update computer_images after the move
+                        computer_images = [pygame.image.load(os.path.join("C:\\path_to_images", path)) for path in computer_rack_images]
+               
+                elif play_for_me_button_rect.collidepoint(x, y):
+ 
+                    # Check if it's the player's turn
+                    if not dragging and not game_board_dragging:
+                        combination_found = False
+ 
+                        # Iterate through each number to find a combination
+                        for number in range(1, 16):  # Check for numbers 1 to 13
+                            same_number_images = [image for image in player_rack_images if int(image.split('_')[1]) == number]
+ 
+                            if len(same_number_images) >= 3:
+                                # Sort images by color to form a sequence
+                                same_number_images.sort(key=lambda x: x.split('_')[2])
+ 
+                                # Choose a random subset of the sequence (minimum 3, maximum 5 cards)
+                                subset_size = random.randint(3, min(len(same_number_images), 5))
+                                selected_images = random.sample(same_number_images, subset_size)
+ 
+                                # Simulate placing the selected cards on the game board
+                                col = random.randint(0, num_columns - subset_size)
+                                row = random.randint(0, num_rows - 1)
+ 
+                                if is_valid_group_or_run_fin(same_number_images) == "Invalid":
+                                    combination_found = False
+                                    break
+ 
+                                # Check if the selected cells on the game board are empty
+                                if all(game_board_grid[row][col + i]['image_path'] is None for i in range(subset_size)):
+                                    for i, image_path in enumerate(selected_images):
+                                        game_board_grid[row][col + i]['image_path'] = image_path
+                                        game_board_tiles.append({
+                                            'image': pygame.image.load(os.path.join("C:\\Users\\sanyo\\Rummikub-Project\\images\\", image_path)),
+                                            'rect': pygame.Rect(game_board_grid[row][col + i]['cell_rect']),
+                                            'selected image path': image_path
+                                        })
+ 
+                                        # Remove the selected card from the player's rack
+                                        player_rack_images.remove(image_path)
+ 
+                                    if is_valid_group_or_run_fin(same_number_images) in ("Run","Group"):
+                                        combination_found = True
+
+                                    break
+ 
+                        # If no combination is found, draw a card from the pool
+                        if not combination_found and len(pool_images) > 0:
+                            drawn_card = random.choice(pool_images)
+                            player_rack_images.append(drawn_card)
+ 
+                            # Remove the drawn card from the pool
+                            pool_images.remove(drawn_card)
+ 
+                        # Update player_hand_images after the move
+                        player_images = [pygame.image.load(os.path.join("C:\\Users\\sanyo\\Rummikub-Project\\images\\", path)) for path in player_rack_images]
+                        current_time = total_time
+                        current_player = "Computer"
+                        play_button_clicked = True
+                        freeze_panel()
+
                 elif group_button_rect.collidepoint(x, y):
-                    # Handle group button click
-                    print("Group button clicked")
  
                     def sort_images_by_group(image_paths):
                         # Extract numbers from image paths
@@ -382,7 +561,6 @@ while running:
                         sorted_images = []
                         for number in sorted(images_by_number.keys()):
                             sorted_images.extend(images_by_number[number])
-                        #print("Group Sorted Images:", sorted_images)
                         return sorted_images
                    
                     # Sort player_rack_images
@@ -391,8 +569,6 @@ while running:
  
                 elif run_button_rect.collidepoint(x, y):
                     # Handle run button click
-                    print("Run button clicked")
- 
                     def sort_images_by_run(image_paths):
                         # Extract colors and numbers from image paths
                         color_number_pairs = [(image.split('_')[2], int(image.split('_')[1])) for image in image_paths]
@@ -402,7 +578,6 @@ while running:
                        
                         # Convert back to image paths
                         sorted_image_paths = [f"tile_{num}_{color}" for color, num in sorted_images]
-                        #print("Run Sorted Images:", sorted_image_paths)
                         return sorted_image_paths
                    
                     player_rack_images = sort_images_by_run(player_rack_images)
@@ -413,22 +588,18 @@ while running:
  
                 elif pool_button_rect.collidepoint(x, y):
                     # Handle pool button click
-                    print("Pool button clicked")
                     draw_cards_from_pool()
  
                 elif show_all_tiles_rect.collidepoint(x, y):
                     # Handle show all tiles button click
-                    print("Show all tiles button clicked")
                     show_computer_rack = not show_computer_rack
  
                 elif group_button_rect.collidepoint(x, y):
                     # Handle group button click
-                    print("Group button clicked")
                     if player_rack_images:
                         remaining_deck_images += player_rack_images
                     player_rack_images = []
                     current_state = get_current_player_rack_images()
-                    print("Current player rack state:", current_state)
  
         elif event.type == pygame.MOUSEMOTION:
             if dragging:
@@ -448,7 +619,6 @@ while running:
                
                 # Update the position of the dragged image on the game board based on the grid
                 game_board_tiles[game_board_selected_index]['rect'].topleft = game_board_grid[row][col]['cell_rect'].topleft
- 
  
         elif event.type == pygame.MOUSEBUTTONUP:
             if event.button == 1 and dragging:
@@ -478,7 +648,7 @@ while running:
                 selected_image = None
                 selected_index = None
                 original_position = None
-                dragged_image_rect = None  # Reset the rect of the dragged image
+                dragged_image_rect = None 
  
             # If an image on the game board was being dragged, reset the dragging state
             if game_board_dragging:
@@ -489,6 +659,7 @@ while running:
  
     # Draw background
     screen.blit(background_image, (0, 0))
+    screen.blit(top_left_image, (10, 20))
  
     # Draw buttons
     pygame.draw.rect(screen, (0, 255, 0), play_button_rect)  # Green color for play button
@@ -496,6 +667,8 @@ while running:
     pygame.draw.rect(screen, (255, 0, 0), run_button_rect)  # Red color for Run button
     pygame.draw.rect(screen, (0, 0, 255), pool_button_rect)  # Blue color for pool button
     pygame.draw.rect(screen, (255, 165, 0), show_all_tiles_rect) # Orange color for pool button
+    pygame.draw.rect(screen, (0, 255, 0), ct_button_rect)  # Green color for play button
+    pygame.draw.rect(screen, (255, 165, 0), play_for_me_button_rect) # Orange color for pool button
  
     # Draw game board and racks
     pygame.draw.rect(screen, BROWN, game_board_rect)  # White color for the game board
@@ -538,7 +711,16 @@ while running:
             if computer_rack_rect.left + scroll_offset_computer + (i + 1) * (image.get_width() + spacing) < computer_rack_rect.right:
                 screen.blit(image, (x, y))
  
-    # Draw text on buttons
+    play_for_me_button_font = pygame.font.Font(None, 28)
+    text_play_for_me = play_for_me_button_font.render("Play For Me", True, (255, 255, 255))  # White color for text
+    text_play_for_me_rect = text_play_for_me.get_rect(center=play_for_me_button_rect.center)
+    screen.blit(text_play_for_me, text_play_for_me_rect.topleft)
+   
+    ct_button_font = pygame.font.Font(None, 28)
+    text_ct = ct_button_font.render("CT", True, (255, 255, 255))  # White color for text
+    text_ct_rect = text_ct.get_rect(center=ct_button_rect.center)
+    screen.blit(text_ct, text_ct_rect.topleft)
+ 
     text_play = font.render("Play", True, (255, 255, 255))
     text_play_rect = text_play.get_rect(center=play_button_rect.center)
     screen.blit(text_play, text_play_rect.topleft)
@@ -567,15 +749,11 @@ while running:
     for tile in game_board_tiles:
         screen.blit(tile['image'], tile['rect'].topleft)
  
-    #print(len(player_images))
- 
     # Draw the game board grid
     for row in game_board_grid:
         for cell in row:
             pygame.draw.rect(screen, grid_stroke_color, cell['stroke_rect'], 1)
  
-   
-    # --------------------PLAYER SCORE---------------------
     pygame.draw.rect(screen, WHITE, combined_score_box_rect)
  
     text_player_score = font.render(f"Player: {player_score}", True, (0, 0, 0))
@@ -588,6 +766,18 @@ while running:
     screen.blit(text_player_score, text_player_rect.topleft)
     screen.blit(text_computer_score, text_computer_rect.topleft)
  
+    # Render the timer text
+    timer_text = font.render(f"Timer : {current_time} seconds", True, WHITE)
+    screen.blit(timer_text, (20, 640))
+ 
+    # Render the timer and current player text
+    timer_text = font.render(f"Time: {current_time} seconds", True, WHITE)
+    player_text = font.render(f"Current Player: {current_player}", True, WHITE)
+    screen.blit(player_text, (20, 670))
+ 
+    # Reset the flag after handling the click event
+    play_button_clicked = False
+   
     pygame.display.flip()
     clock.tick(FPS)
  
